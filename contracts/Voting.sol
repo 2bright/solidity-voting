@@ -24,7 +24,7 @@ contract Voting {
     // If isAnonymous is true, do not record the options that voter selected.
     uint64 isAnonymous;
     
-    // If isPublic is true, any user could vote without being added to users.
+    // If isPublic is true, any user could vote without being added to user_repo.
     uint64 isPublic;
     
     // If multiWinner is false but has multiple winners, then result is no winner.
@@ -50,7 +50,7 @@ contract Voting {
     // the time deploy this contract
     uint64 create_time;
     
-    UserRepository users;
+    UserRepository user_repo;
 
     // map from voter address to vote index
     mapping(address => uint) votes_index;
@@ -83,7 +83,7 @@ contract Voting {
         uint64 votes;
         
         // if isPublic is true, voters_count is equal to votes_count.
-        // is isPublic is false, voters_count is users count.
+        // is isPublic is false, voters_count is user_repo count.
         uint64 voters;
         
         uint64 start_time;
@@ -95,9 +95,11 @@ contract Voting {
     
     enum VotingStatus {TO_START, VOTING, ENDED, SETTLED}
     
+    // _text: "title" + "description" + "option 0 title" + "option 0 description" + ...
+    // _text_fields: [end index of "title", end index of "description", end index of "option 0 title", ...]
     // _params: select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes
     // _time: to_start_time, to_end_time
-    constructor(string _text, uint64[] _text_fields, uint64[7] _params, uint64[2] _time, address _users) public {
+    constructor(string _text, uint64[] _text_fields, uint64[7] _params, uint64[2] _time, address _user_repo) public {
         uint option_count = _text_fields.length / 2 - 1;
         
         require(
@@ -130,10 +132,10 @@ contract Voting {
         create_time = uint64(now);
         
         if (isPublic == 0) {
-            if (0 == _users) {
-                users = new UserRepository();
+            if (0 == _user_repo) {
+                user_repo = new UserRepository();
             } else {
-                users = UserRepository(_users);
+                user_repo = UserRepository(_user_repo);
             }
         }
         
@@ -143,14 +145,14 @@ contract Voting {
     function getVotingInfo()
         public
         view 
-        returns(address _owner, string _text, uint64[] _text_fields, uint64[7] _params, uint64[3] _time, address _users)
+        returns(address _owner, string _text, uint64[] _text_fields, uint64[7] _params, uint64[3] _time, address _user_repo)
     {
         _owner = owner;
         _text = text;
         _text_fields = text_fields;
         _params = [select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes];
         _time = [to_start_time, to_end_time, create_time];
-        _users = users;
+        _user_repo = user_repo;
     }
 
     // _extra: _votes, _voters, _start_time, _end_time, _status
@@ -169,9 +171,9 @@ contract Voting {
         if (r.status == VotingStatus.SETTLED) {
             _extra[1] = r.voters;
         } else if (isEnded()) {
-            _extra[1] = users.countBefore(r.end_time > 0 ? r.end_time : to_end_time);
+            _extra[1] = user_repo.countBefore(r.end_time > 0 ? r.end_time : to_end_time);
         } else {
-            _extra[1] = users.count();
+            _extra[1] = user_repo.count();
         }
         
         // start_time
@@ -208,7 +210,7 @@ contract Voting {
         require(
             !isEnded() && 
             isStarted() && 
-            (isPublic > 0 || users.hasUser(voter)) &&
+            (isPublic > 0 || user_repo.hasUser(voter)) &&
             0 == votes_index[voter] &&
             _optionIDs.length >= select_min &&
             _optionIDs.length <= select_max
@@ -276,7 +278,7 @@ contract Voting {
         require(isEnded());
         
         result.votes = uint64(votes.length) - 1;
-        result.voters = users.countBefore(result.end_time > 0 ? result.end_time : to_end_time);
+        result.voters = user_repo.countBefore(result.end_time > 0 ? result.end_time : to_end_time);
         
         uint64 max_votes_count = 0;
         uint64 winner_count = 0;
