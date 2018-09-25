@@ -27,7 +27,7 @@
     > publisher invoke VotingSystem.createVoting to get a Voting contract address, providing a UserRepository address as a parameter.
     > anyone invoke Voting.getVotingInfo to get voting info stored when createVoting.
     > publisher invoke Voting.startVoting if to_start_time is not provided when createVoting.
-    > voters (anyone) invoke Voting.vote.
+    > voters (user in the UserRepository) invoke Voting.vote.
     > publisher invoke Voting.endVoting if to_end_time is not provided when createVoting.
     > anyone invoke Voting.settleVoting to calculate the winner after voting end.
     > anyone invoke Voting.getVotingResult to get voting winner.
