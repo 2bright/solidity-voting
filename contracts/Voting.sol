@@ -126,6 +126,12 @@ contract Voting {
         multiWinner = _params[4];
         thresholdWinnerVotes = uint8(_params[5]);
         thresholdTotalVotes = _params[6];
+
+        // percent
+        require(
+            (isPublic > 0 || thresholdTotalVotes <= 100) &&
+            thresholdWinnerVotes <= 100
+        );
         
         to_start_time = _time[0];
         to_end_time = _time[1];
