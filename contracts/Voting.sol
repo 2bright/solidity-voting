@@ -305,8 +305,8 @@ contract Voting {
         
         if ((winner_count == 1 || (winner_count > 1 && multiWinner > 0))
             && (isPublic == 0 || result.votes >= thresholdTotalVotes)
-            && (isPublic > 0 || result.votes >= (result.voters * thresholdTotalVotes / 100 + (result.voters * thresholdTotalVotes % 100 > 0 ? 1 : 0)))
-            && max_votes_count >= (result.votes * thresholdWinnerVotes / 100 + (result.votes * thresholdWinnerVotes % 100 > 0 ? 1 : 0))
+            && (isPublic > 0 || result.votes * 100 >= result.voters * thresholdTotalVotes)
+            && max_votes_count * 100 >= result.votes * thresholdWinnerVotes
         ) {
             for (i = 0; i < len; i++) {
                 if (max_votes_count == result.options[i]) {
