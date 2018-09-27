@@ -30,9 +30,8 @@ contract TestVotingSystem {
         Assert.notEqual(0, voting2, "createVoting error");
 
         user_repos = vSys.getUserRepositories();
-        Assert.equal(2, user_repos.length, "getVotings error");
-        Assert.notEqual(0, user_repos[0], "getVotings error");
-        Assert.equal(_user_repo, user_repos[1], "getVotings error");
+        Assert.equal(1, user_repos.length, "getVotings error");
+        Assert.equal(_user_repo, user_repos[0], "getVotings error");
 
         address[] memory vs = vSys.getVotings();
         Assert.equal(2, vs.length, "getVotings error");

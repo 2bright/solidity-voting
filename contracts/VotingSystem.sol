@@ -12,16 +12,6 @@ contract VotingSystem {
         returns(address)
     {
         Voting v = new Voting(_text, _text_fields, _params, _time, _user_repo);
-        if (_user_repo == 0) {
-            address _owner;
-            uint64[3] memory _o_time;
-
-            (_owner, _text, _text_fields, _params, _o_time, _user_repo) = v.getVotingInfo();
-
-            if (_user_repo != 0) {
-                userRepositories[tx.origin].push(_user_repo);
-            }
-        }
         votings[tx.origin].push(v);
         return v;
     }
