@@ -2,20 +2,27 @@ pragma solidity ^0.4.24;
 
 import "./UserRepository.sol";
 
+library VotingFactory {
+    function createVoting(bytes32 _content_hash, bytes _content, uint64[8] _params, uint64[2] _time, address _user_repo)
+        public
+        returns(address)
+    {
+        return new Voting(msg.sender, _content_hash, _content, _params, _time, _user_repo);
+    }
+}
+
 contract Voting {
     address owner;
     
-    // title and description of voting and options.
-    // format as "title" + "description" + "option 0 title" + "option 0 description" + ...
-    // field range is stored in text_fields
-    string text;
+    // hash of detail description and options of this voting
+    bytes32 content_hash;
+
+    // detail description and options of this voting
+    // content_hash is required, but content is optional.
+    bytes content;
     
-    // end index of each field in text
-    // title: [0, text_fields[0]]
-    // description: [text_fields[0], text_fields[1]]
-    // option 0 title: [text_fields[1], text_fields[2]]
-    // option 0 description: [text_fields[2], text_fields[3]]
-    uint64[] text_fields;
+    // total options
+    uint64 option_count;
     
     // how many options could one voter select.
     uint64 select_min;
@@ -51,6 +58,8 @@ contract Voting {
     uint64 create_time;
     
     UserRepository user_repo;
+    mapping(address => uint) user_weight_index;
+    UserWeight[] user_weights;
 
     // map from voter address to vote index
     mapping(address => uint) votes_index;
@@ -60,6 +69,11 @@ contract Voting {
     Vote[] votes;
     
     VoteResult result;
+
+    struct UserWeight {
+        address addr;
+        uint64 weight;
+    }
     
     struct Vote {
         address voter;
@@ -95,46 +109,61 @@ contract Voting {
     
     enum VotingStatus {TO_START, VOTING, ENDED, SETTLED}
     
-    // _text: "title" + "description" + "option 0 title" + "option 0 description" + ...
-    // _text_fields: [end index of "title", end index of "description", end index of "option 0 title", ...]
-    // _params: select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes
+    // params index
+    uint8 P_OPTION_COUNT = 0;
+    uint8 P_SELECT_MIN = 1;
+    uint8 P_SELECT_MAX = 2;
+    uint8 P_ISANONYMOUS = 3;
+    uint8 P_ISPUBLIC = 4;
+    uint8 P_MULTIWINNER = 5;
+    uint8 P_THRESHOLDWINNERVOTES = 6;
+    uint8 P_THRESHOLDTOTALVOTES = 7;
+
+    // time index
+    uint8 T_TO_START_TIME = 0;
+    uint8 T_TO_END_TIME = 1;
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "only owner can call this function.");
+        _;
+    }
+    
+    // _params: option_count, select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes
     // _time: to_start_time, to_end_time
-    constructor(string _text, uint64[] _text_fields, uint64[7] _params, uint64[2] _time, address _user_repo) public {
-        uint option_count = _text_fields.length / 2 - 1;
+    constructor(address _owner, bytes32 _content_hash, bytes _content, uint64[8] _params, uint64[2] _time, address _user_repo) public {
+        require(_content_hash > 0, "content hash is not valid.");
+        require(_content.length == 0 || keccak256(_content) == _content_hash, "keccak256 hash of content does not match.");
+        require(_params[P_OPTION_COUNT] >= 2, "option count must be at least 2.");
+        require(_params[P_SELECT_MIN] >= 1 && _params[P_SELECT_MAX] <= _params[P_OPTION_COUNT], "select option count must be between 1 and option count.");
+        require(_time[T_TO_START_TIME] == 0 || _time[T_TO_START_TIME] >= now, "to start time must be 0 or greater then now.");
+        require(_time[T_TO_END_TIME] == 0 || _time[T_TO_END_TIME] >= now, "to end time must be 0 or greater then now.");
+
+        if (_owner == 0) {
+            owner = msg.sender;
+        } else {
+            owner = _owner;
+        }
         
-        require(
-            bytes(_text).length == _text_fields[_text_fields.length - 1] && 
-            _text_fields.length >= 6 && 
-            _text_fields.length % 2 == 0 && 
-            _params[0] >= 1 && 
-            _params[1] <= option_count && 
-            (_time[0] == 0 || _time[0] >= now) && 
-            (_time[1] == 0 || _time[1] >= now)
-        );
+        content_hash = _content_hash;
+        content = _content;
         
-        owner = tx.origin;
-        
-        text = _text;
-        text_fields = _text_fields;
-        
+        option_count = _params[P_OPTION_COUNT];
+        select_min = _params[P_SELECT_MIN];
+        select_max = _params[P_SELECT_MAX];
+        isAnonymous = _params[P_ISANONYMOUS];
+        isPublic = _params[P_ISPUBLIC];
+        multiWinner = _params[P_MULTIWINNER];
+        thresholdWinnerVotes = uint8(_params[P_THRESHOLDWINNERVOTES]);
+        thresholdTotalVotes = _params[P_THRESHOLDTOTALVOTES];
+
         result.options = new uint64[](option_count);
-        
-        select_min = _params[0];
-        select_max = _params[1];
-        isAnonymous = _params[2];
-        isPublic = _params[3];
-        multiWinner = _params[4];
-        thresholdWinnerVotes = uint8(_params[5]);
-        thresholdTotalVotes = _params[6];
 
         // percent
-        require(
-            (isPublic > 0 || thresholdTotalVotes <= 100) &&
-            thresholdWinnerVotes <= 100
-        );
+        require(isPublic > 0 || thresholdTotalVotes <= 100, "threshold of total votes is not a percent.");
+        require(thresholdWinnerVotes <= 100, "threshold of winner votes is not a percent.");
         
-        to_start_time = _time[0];
-        to_end_time = _time[1];
+        to_start_time = _time[T_TO_START_TIME];
+        to_end_time = _time[T_TO_END_TIME];
         create_time = uint64(now);
         
         if (isPublic == 0) {
@@ -146,17 +175,51 @@ contract Voting {
         }
         
         votes.push(Vote(0, new uint64[](0), 0));
+        user_weights.push(UserWeight({addr:0, weight:1}));
+    }
+
+    function getContent() public view returns(bytes) {
+        return content;
+    }
+
+    function setUsersWeight(address[] _users, uint64[] _weights) public returns(bool) {
+        require(msg.sender == owner, "only owner can call this function.");
+        require(!isStarted(), "changing user weight is forbiden after voting started.");
+        require(isPublic == 0, "public voting can not set user weight.");
+        require(user_repo.hasUsers(_users), "some user is not added to user repository.");
+
+        for (uint i = 0; i < _users.length; i++) {
+            if (user_weight_index[_users[i]] > 0) {
+                user_weights[user_weight_index[_users[i]]].weight = _weights[i] > 1 ? _weights[i] : 1;
+            } else {
+                user_weight_index[_users[i]] = user_weights.length;
+                user_weights.push(UserWeight(_users[i], _weights[i]));
+            }
+        }
+
+        return true;
+    }
+
+    function getUsersWeight() public view returns(address[] _users, uint64[] _weights) {
+        uint len = user_weights.length;
+
+        _users = new address[](len - 1);
+        _weights = new uint64[](len - 1);
+
+        for (uint i = 1; i < len; i++) {
+            _users[i - 1] = user_weights[i].addr;
+            _weights[i - 1] = user_weights[i].weight;
+        }
     }
 
     function getVotingInfo()
         public
         view 
-        returns(address _owner, string _text, uint64[] _text_fields, uint64[7] _params, uint64[3] _time, address _user_repo)
+        returns(address _owner, bytes32 _content_hash, uint64[8] _params, uint64[3] _time, address _user_repo)
     {
         _owner = owner;
-        _text = text;
-        _text_fields = text_fields;
-        _params = [select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes];
+        _content_hash = content_hash;
+        _params = [option_count, select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes];
         _time = [to_start_time, to_end_time, create_time];
         _user_repo = user_repo;
     }
@@ -212,25 +275,24 @@ contract Voting {
     
     function vote(uint64[] _optionIDs) external returns(bool) {
         address voter = msg.sender;
+        address voter_registered;
+        uint64 add_time;        
 
-        require(
-            !isEnded() && 
-            isStarted() && 
-            (isPublic > 0 || user_repo.hasUser(voter)) &&
-            0 == votes_index[voter] &&
-            _optionIDs.length >= select_min &&
-            _optionIDs.length <= select_max
-        );
-        
-        uint64 option_count = uint64(result.options.length);
-        
+        (voter_registered, add_time) = user_repo.getUser(msg.sender);
+
+        require(!isEnded(), "voting has ended.");
+        require(isStarted(), "voting has not started.");
+        require(isPublic > 0 || (add_time > 0 && add_time <= getStartTime()), "you are not permitted to vote.");
+        require(0 == votes_index[voter], "you have voted.");
+        require(_optionIDs.length >= select_min && _optionIDs.length <= select_max, "vote count error.");
+
         bool[] memory _options = new bool[](option_count);
         
         uint64 i = 0;
         uint64 n = 0;
         
         for (i = 0; i < _optionIDs.length; i++) {
-            require(_optionIDs[i] < option_count);
+            require(_optionIDs[i] < option_count, "vote option index error");
             
             if (!_options[_optionIDs[i]]) {
                 n++;
@@ -239,11 +301,12 @@ contract Voting {
         }
         
         Vote memory v = Vote({voter:voter, optionIDs:new uint64[](isAnonymous > 0 ? 0 : n), add_time:uint64(now)});
+        uint64 weight = user_weights[user_weight_index[voter]].weight;
         
         uint j = 0;
         for (i = 0; i < option_count; i++) {
             if (_options[i]) {
-                result.options[i]++;
+                result.options[i] += weight;
                 if (isAnonymous == 0) {
                     v.optionIDs[j] = i;
                     j++;
@@ -258,8 +321,8 @@ contract Voting {
         return true;
     }
     
-    function startVoting() external returns(bool) {
-        require(tx.origin == owner && to_start_time == 0);
+    function startVoting() public onlyOwner returns(bool) {
+        require(to_start_time == 0, "voting is set to start automatically.");
         
         if (result.start_time == 0) {
             result.start_time = uint64(now);
@@ -269,8 +332,9 @@ contract Voting {
         return true;
     }
     
-    function endVoting() external returns(bool) {
-        require(tx.origin == owner && to_end_time == 0 && isStarted());
+    function endVoting() public onlyOwner returns(bool) {
+        require(to_end_time == 0, "voting is set to end automatically.");
+        require(isStarted(), "voting has not started.");
         
         if (result.end_time == 0) {
             result.end_time = uint64(now);
@@ -281,7 +345,7 @@ contract Voting {
     }
 
     function settleVoting() external returns(bool) {
-        require(isEnded());
+        require(isEnded(), "voting has not ended.");
         
         result.votes = uint64(votes.length) - 1;
         result.voters = user_repo.countBefore(result.end_time > 0 ? result.end_time : to_end_time);
@@ -289,25 +353,35 @@ contract Voting {
         uint64 max_votes_count = 0;
         uint64 winner_count = 0;
         
-        uint len = result.options.length;
-        uint64 option_count = 0;
+        uint len = 0;
+        uint64 count = 0;
         uint64 i = 0;
         
+        len = result.options.length;
         for (i = 0; i < len; i++) {
-            option_count = result.options[i];
-            if (max_votes_count < option_count) {
-                max_votes_count = option_count;
+            count = result.options[i];
+            if (max_votes_count < count) {
+                max_votes_count = count;
                 winner_count = 1;
-            } else if (max_votes_count == option_count) {
+            } else if (max_votes_count == count) {
                 winner_count++;
+            }
+        }
+
+        uint64 weightedVotes = 0;
+        if (isPublic == 0) {
+            len = user_weights.length;
+            for (i = 1; i < len; i++) {
+                weightedVotes += user_weights[i].weight - 1;
             }
         }
         
         if ((winner_count == 1 || (winner_count > 1 && multiWinner > 0))
             && (isPublic == 0 || result.votes >= thresholdTotalVotes)
-            && (isPublic > 0 || result.votes * 100 >= result.voters * thresholdTotalVotes)
+            && (isPublic > 0 || result.votes * 100 >= result.voters * thresholdTotalVotes + weightedVotes)
             && max_votes_count * 100 >= result.votes * thresholdWinnerVotes
         ) {
+            len = result.options.length;
             for (i = 0; i < len; i++) {
                 if (max_votes_count == result.options[i]) {
                     result.winners.push(i);
@@ -326,5 +400,15 @@ contract Voting {
     
     function isEnded() internal view returns(bool) {
         return (result.end_time > 0 || (to_end_time > 0 && now >= to_end_time));
+    }
+
+    function getStartTime() internal view returns(uint64) {
+        if (result.start_time > 0) {
+            return result.start_time;
+        } else if (to_start_time > 0) {
+            return to_start_time;
+        } else {
+            return 0;
+        }
     }
 }

@@ -1,5 +1,11 @@
 pragma solidity ^0.4.24;
 
+library UserRepositoryFactory {
+    function createUserRepository() internal returns(address) {
+        return new UserRepository();
+    }
+}
+
 contract UserRepository {
     address owner;
     
@@ -36,16 +42,23 @@ contract UserRepository {
     function hasUser(address _addr) public view returns(bool) {
         return users_index[_addr] > 0;
     }
+
+    function hasUsers(address[] _users) public view returns(bool) {
+        for (uint i = 0; i < _users.length; i++) {
+            if (users_index[_users[i]] == 0) {
+                return false;
+            }
+        }
+        return true;
+    }
     
     function getUser(address _addr) public view returns(address _o_addr, uint64 _add_time) {
         uint index = users_index[_addr];
-        
-        require(index > 0);
-        
-        User memory v = users[index];
-        
-        _o_addr = v.addr;
-        _add_time = v.add_time;
+        if (index > 0) {
+            User memory v = users[index];
+            _o_addr = v.addr;
+            _add_time = v.add_time;
+        }
     }
     
     function count() public view returns(uint64) {

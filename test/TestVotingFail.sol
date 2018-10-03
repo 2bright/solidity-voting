@@ -8,11 +8,11 @@ contract TestVotingFail {
     VotingSystem vSys;
 
     address owner;
-    string text = "12345678";
-    uint64[] text_fields = new uint64[](8);
+    bytes content = "12345678";
+    bytes32 content_hash;
     
-    // select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes
-    uint64[7] params = [uint64(1), uint64(1), uint64(0), uint64(0), uint64(0), uint64(50), uint64(66)];
+    // option_count, select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes
+    uint64[8] params = [uint64(3), uint64(1), uint64(1), uint64(0), uint64(0), uint64(0), uint64(50), uint64(66)];
 
     // to_start_time, to_end_time
     uint64[2] time = [uint64(0), uint64(0)];
@@ -29,9 +29,7 @@ contract TestVotingFail {
     uint8 I_STATUS = 4;
 
     constructor() public {
-        for (uint64 i = 0; i < 8; i++) {
-            text_fields[i] = i + 1;
-        }
+        content_hash = keccak256(content);
     }
 
     function testVotingFailVotesLess66Percent() public {
@@ -44,7 +42,7 @@ contract TestVotingFail {
         user_repo = vSys.createUserRepository();
         UserRepository(user_repo).addUsers(users);
 
-        Voting v = Voting(vSys.createVoting(text, text_fields, params, time, user_repo));
+        Voting v = Voting(vSys.createVoting(content_hash, content, params, time, user_repo));
 
         uint64[] memory _winners;
         uint64[] memory _options;
@@ -83,7 +81,7 @@ contract TestVotingFail {
     }
 
     function testVotingFailWinnerLess50Percent() public {
-        Voting v = Voting(vSys.createVoting(text, text_fields, params, time, user_repo));
+        Voting v = Voting(vSys.createVoting(content_hash, content, params, time, user_repo));
 
         uint64[] memory _winners;
         uint64[] memory _options;

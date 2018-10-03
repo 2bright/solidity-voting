@@ -10,11 +10,11 @@ contract TestVoting {
     VotingSystem vSys;
 
     address owner;
-    string text = "123456";
-    uint64[] text_fields = new uint64[](6);
+    bytes content = "123456";
+    bytes32 content_hash;
     
-    // select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes
-    uint64[7] params = [uint64(1), uint64(1), uint64(0), uint64(0), uint64(0), uint64(50), uint64(66)];
+    // option_count, select_min, select_max, isAnonymous, isPublic, multiWinner, thresholdWinnerVotes, thresholdTotalVotes
+    uint64[8] params = [uint64(2), uint64(1), uint64(1), uint64(0), uint64(0), uint64(0), uint64(50), uint64(66)];
 
     // to_start_time, to_end_time
     uint64[2] time = [uint64(0), uint64(0)];
@@ -26,47 +26,38 @@ contract TestVoting {
     function testCreateVoting() public {
         vSys = VotingSystem(DeployedAddresses.VotingSystem());
 
-        owner = tx.origin;
+        owner = this;
+        content_hash = keccak256(content);
 
-        for (uint64 i = 0; i < 6; i++) {
-            text_fields[i] = i + 1;
-        }
-
-        voting = Voting(vSys.createVoting(text, text_fields, params, time, user_repo));
+        voting = Voting(vSys.createVoting(content_hash, content, params, time, user_repo));
         Assert.notEqual(addr_0, voting, "createVoting error");
     }
 
     function testGetVotingInfo() public {
         address _owner;
-        string memory _text;
-        uint64[] memory _text_fields;
-        uint64[7] memory _params;
+        bytes32 _content_hash;
+        uint64[8] memory _params;
         uint64[3] memory _time;
         address _user_repo;
 
-        (_owner, _text, _text_fields, _params, _time, _user_repo) = voting.getVotingInfo();
+        (_owner, _content_hash, _params, _time, _user_repo) = voting.getVotingInfo();
 
-        Assert.equal(owner, _owner, "getVotingInfo error");
-        Assert.equal(text, _text, "getVotingInfo error");
-        Assert.equal(text_fields.length, _text_fields.length, "getVotingInfo error");
+        Assert.equal(owner, _owner, "getVotingInfo error 1");
+        Assert.equal(content_hash, _content_hash, "getVotingInfo error 2");
 
         uint i = 0;
 
-        for (i = 0; i < _text_fields.length; i++) {
-            Assert.equal(uint(text_fields[i]), uint(_text_fields[i]), "getVotingInfo error");
+        for (i = 0; i < 8; i++) {
+            Assert.equal(uint(params[i]), uint(_params[i]), "getVotingInfo error 3");
         }
 
-        for (i = 0; i < 7; i++) {
-            Assert.equal(uint(params[i]), uint(_params[i]), "getVotingInfo error");
-        }
-
-        Assert.equal(uint(time[0]), uint(_time[0]), "getVotingInfo error");
-        Assert.equal(uint(time[1]), uint(_time[1]), "getVotingInfo error");
+        Assert.equal(uint(time[0]), uint(_time[0]), "getVotingInfo error 4");
+        Assert.equal(uint(time[1]), uint(_time[1]), "getVotingInfo error 5");
 
         // create time
-        Assert.isBelow(0, uint(_time[2]), "getVotingInfo error");
+        Assert.isBelow(0, uint(_time[2]), "getVotingInfo error 6");
 
-        Assert.notEqual(addr_0, _user_repo, "getVotingInfo error");
+        Assert.notEqual(addr_0, _user_repo, "getVotingInfo error 7");
 
         user_repo = _user_repo;
     }
