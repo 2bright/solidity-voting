@@ -11,7 +11,7 @@ contract TestVotingSystem {
         bytes memory _content = "123456";
         bytes32 _content_hash = keccak256(_content);
 
-        uint64[8] memory _params = [uint64(2), uint64(1), uint64(1), uint64(0), uint64(0), uint64(0), uint64(50), uint64(67)];
+        uint64[8] memory _params = [uint64(2), uint64(1), uint64(1), uint64(0), uint64(1), uint64(0), uint64(50), uint64(67)];
         uint64[2] memory _time = [uint64(0), uint64(0)];
         address _user_repo = 0;
         address[] memory user_repos;
@@ -22,6 +22,7 @@ contract TestVotingSystem {
         _user_repo = vSys.createUserRepository();
         Assert.notEqual(0, _user_repo, "getVotings error");
 
+        _params[4] = 0;
         address voting2 = vSys.createVoting(_content_hash, _content, _params, _time, _user_repo);
         Assert.notEqual(0, voting2, "createVoting error");
 

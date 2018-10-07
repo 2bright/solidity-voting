@@ -137,6 +137,10 @@ contract Voting {
         require(_params[P_SELECT_MIN] >= 1 && _params[P_SELECT_MAX] <= _params[P_OPTION_COUNT], "select option count must be between 1 and option count.");
         require(_time[T_TO_START_TIME] == 0 || _time[T_TO_START_TIME] >= now, "to start time must be 0 or greater then now.");
         require(_time[T_TO_END_TIME] == 0 || _time[T_TO_END_TIME] >= now, "to end time must be 0 or greater then now.");
+        // percent
+        require(_params[P_ISPUBLIC] > 0 || _params[P_THRESHOLDTOTALVOTES] <= 100, "threshold of total votes is not a percent.");
+        require(_params[P_THRESHOLDWINNERVOTES] <= 100, "threshold of winner votes is not a percent.");
+        require(_params[P_ISPUBLIC] > 0 || _user_repo > 0, "user repository required for non public voting.");
 
         if (_owner == 0) {
             owner = msg.sender;
@@ -158,20 +162,12 @@ contract Voting {
 
         result.options = new uint64[](option_count);
 
-        // percent
-        require(isPublic > 0 || thresholdTotalVotes <= 100, "threshold of total votes is not a percent.");
-        require(thresholdWinnerVotes <= 100, "threshold of winner votes is not a percent.");
-        
         to_start_time = _time[T_TO_START_TIME];
         to_end_time = _time[T_TO_END_TIME];
         create_time = uint64(now);
         
         if (isPublic == 0) {
-            if (0 == _user_repo) {
-                user_repo = new UserRepository();
-            } else {
-                user_repo = UserRepository(_user_repo);
-            }
+            user_repo = UserRepository(_user_repo);
         }
         
         votes.push(Vote(0, new uint64[](0), 0));

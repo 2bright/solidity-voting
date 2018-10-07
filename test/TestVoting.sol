@@ -29,6 +29,9 @@ contract TestVoting {
         owner = this;
         content_hash = keccak256(content);
 
+        user_repo = vSys.createUserRepository();
+        Assert.notEqual(0, user_repo, "createUserRepository error");
+
         voting = Voting(vSys.createVoting(content_hash, content, params, time, user_repo));
         Assert.notEqual(addr_0, voting, "createVoting error");
     }
@@ -57,9 +60,7 @@ contract TestVoting {
         // create time
         Assert.isBelow(0, uint(_time[2]), "getVotingInfo error 6");
 
-        Assert.notEqual(addr_0, _user_repo, "getVotingInfo error 7");
-
-        user_repo = _user_repo;
+        Assert.equal(user_repo, _user_repo, "getVotingInfo error 7");
     }
 
     function testVoting() public {
